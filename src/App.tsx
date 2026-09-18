@@ -5,6 +5,7 @@ import Clientes from './components/Clientes';
 import Imoveis from './components/Imoveis';
 import Relatorios from './components/Relatorios';
 import AdminDB from './components/AdminDB';
+import PWAInstall from './components/PWAInstall';
 import { useClientes } from './hooks/useDatabase';
 import { useImoveis } from './hooks/useDatabase';
 import { usePagamentos } from './hooks/useDatabase';
@@ -190,6 +191,9 @@ function App() {
           )}
         </div>
       </main>
+
+      {/* Banner de instalação PWA */}
+      <PWAInstall />
     </div>
   );
 }
