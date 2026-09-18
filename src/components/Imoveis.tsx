@@ -1,21 +1,26 @@
 import { useState } from 'react';
-import { Cliente, Imovel } from '../types';
+import { DBCliente, DBImovel } from '../database/db';
 
 interface ImoveisProps {
-  imoveis: Imovel[];
-  setImoveis: (imoveis: Imovel[]) => void;
-  clientes: Cliente[];
+  imoveis: DBImovel[];
+  clientes: DBCliente[];
+  onAdd: (dados: Omit<DBImovel, 'id' | 'uuid' | 'dataCadastro' | 'ativo'>) => Promise<void>;
+  onUpdate: (uuid: string, dados: Partial<DBImovel>) => Promise<void>;
+  onRemove: (uuid: string) => Promise<void>;
+  onTogglePagamento: (imovelUuid: string, mes: number, ano: number) => Promise<void>;
+  isPago: (imovelUuid: string, mes: number, ano: number) => boolean;
+  onRecarregarPagamentos: () => void;
 }
 
-export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps) {
+export default function Imoveis({ imoveis, clientes, onAdd, onUpdate, onRemove, onTogglePagamento, isPago, onRecarregarPagamentos }: ImoveisProps) {
   const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [editUuid, setEditUuid] = useState<string | null>(null);
   const [tipo, setTipo] = useState<'casa' | 'fazenda' | 'suite'>('casa');
   const [endereco, setEndereco] = useState('');
   const [valorAluguel, setValorAluguel] = useState('');
   const [contratoMeses, setContratoMeses] = useState<6 | 12>(12);
   const [dataInicio, setDataInicio] = useState('');
-  const [clienteId, setClienteId] = useState('');
+  const [clienteUuid, setClienteUuid] = useState('');
   const [periodoArrendado, setPeriodoArrendado] = useState('');
   const [residencial, setResidencial] = useState('');
   const [busca, setBusca] = useState('');
@@ -27,103 +32,69 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
     setValorAluguel('');
     setContratoMeses(12);
     setDataInicio('');
-    setClienteId('');
+    setClienteUuid('');
     setPeriodoArrendado('');
     setResidencial('');
     setShowForm(false);
-    setEditId(null);
+    setEditUuid(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!endereco || !valorAluguel || !dataInicio || !clienteId) return;
+    if (!endereco || !valorAluguel || !dataInicio || !clienteUuid) return;
 
-    if (editId) {
-      setImoveis(imoveis.map(im =>
-        im.id === editId ? {
-          ...im,
-          tipo,
-          endereco,
-          valorAluguel: parseFloat(valorAluguel),
-          contratoMeses,
-          dataInicio,
-          clienteId,
-          periodoArrendado: tipo === 'fazenda' ? periodoArrendado : undefined,
-          residencial: tipo === 'suite' ? residencial : undefined,
-        } : im
-      ));
-    } else {
-      const novo: Imovel = {
-        id: Date.now().toString(),
+    if (editUuid) {
+      await onUpdate(editUuid, {
         tipo,
         endereco,
         valorAluguel: parseFloat(valorAluguel),
         contratoMeses,
         dataInicio,
-        clienteId,
+        clienteUuid,
         periodoArrendado: tipo === 'fazenda' ? periodoArrendado : undefined,
         residencial: tipo === 'suite' ? residencial : undefined,
-        pagamentos: [],
-      };
-      setImoveis([...imoveis, novo]);
+      });
+    } else {
+      await onAdd({
+        tipo,
+        endereco,
+        valorAluguel: parseFloat(valorAluguel),
+        contratoMeses,
+        dataInicio,
+        clienteUuid,
+        periodoArrendado: tipo === 'fazenda' ? periodoArrendado : undefined,
+        residencial: tipo === 'suite' ? residencial : undefined,
+      });
     }
     resetForm();
   };
 
-  const handleEdit = (imovel: Imovel) => {
+  const handleEdit = (imovel: DBImovel) => {
     setTipo(imovel.tipo);
     setEndereco(imovel.endereco);
     setValorAluguel(imovel.valorAluguel.toString());
     setContratoMeses(imovel.contratoMeses);
     setDataInicio(imovel.dataInicio);
-    setClienteId(imovel.clienteId);
+    setClienteUuid(imovel.clienteUuid);
     setPeriodoArrendado(imovel.periodoArrendado || '');
     setResidencial(imovel.residencial || '');
-    setEditId(imovel.id);
+    setEditUuid(imovel.uuid);
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (uuid: string) => {
     if (confirm('Tem certeza que deseja excluir este imóvel?')) {
-      setImoveis(imoveis.filter(im => im.id !== id));
+      await onRemove(uuid);
     }
   };
 
-  const togglePagamento = (imovelId: string) => {
+  const handleTogglePagamento = async (imovelUuid: string) => {
     const now = new Date();
-    const mes = now.getMonth() + 1;
-    const ano = now.getFullYear();
-
-    setImoveis(imoveis.map(im => {
-      if (im.id !== imovelId) return im;
-      
-      const pagamentoExistente = im.pagamentos.find(p => p.mes === mes && p.ano === ano);
-      
-      if (pagamentoExistente) {
-        return {
-          ...im,
-          pagamentos: im.pagamentos.map(p =>
-            p.mes === mes && p.ano === ano
-              ? { ...p, pago: !p.pago, dataPagamento: !p.pago ? new Date().toISOString() : undefined }
-              : p
-          ),
-        };
-      } else {
-        return {
-          ...im,
-          pagamentos: [...im.pagamentos, {
-            id: Date.now().toString(),
-            mes,
-            ano,
-            pago: true,
-            dataPagamento: new Date().toISOString(),
-          }],
-        };
-      }
-    }));
+    await onTogglePagamento(imovelUuid, now.getMonth() + 1, now.getFullYear());
+    onRecarregarPagamentos();
   };
 
-  const getMesesRestantes = (imovel: Imovel) => {
+  const getMesesRestantes = (imovel: DBImovel) => {
     const inicio = new Date(imovel.dataInicio);
     const fim = new Date(inicio);
     fim.setMonth(fim.getMonth() + imovel.contratoMeses);
@@ -136,24 +107,15 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
     return diffMeses;
   };
 
-  const isContratoAtivo = (imovel: Imovel) => {
+  const isContratoAtivo = (imovel: DBImovel) => {
     const inicio = new Date(imovel.dataInicio);
     const fim = new Date(inicio);
     fim.setMonth(fim.getMonth() + imovel.contratoMeses);
     return new Date() < fim;
   };
 
-  const isPagoMes = (imovel: Imovel) => {
-    const now = new Date();
-    return imovel.pagamentos.some(p =>
-      p.mes === now.getMonth() + 1 &&
-      p.ano === now.getFullYear() &&
-      p.pago
-    );
-  };
-
-  const getClienteNome = (clienteId: string) => {
-    const cliente = clientes.find(c => c.id === clienteId);
+  const getClienteNome = (uuid: string) => {
+    const cliente = clientes.find(c => c.uuid === uuid);
     return cliente ? cliente.nome : 'Cliente não encontrado';
   };
 
@@ -177,7 +139,7 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
 
   const imoveisFiltrados = imoveis.filter(im => {
     const matchBusca = im.endereco.toLowerCase().includes(busca.toLowerCase()) ||
-      getClienteNome(im.clienteId).toLowerCase().includes(busca.toLowerCase());
+      getClienteNome(im.clienteUuid).toLowerCase().includes(busca.toLowerCase());
     const matchTipo = filtroTipo === 'todos' || im.tipo === filtroTipo;
     return matchBusca && matchTipo;
   });
@@ -200,7 +162,7 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
       {showForm && (
         <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100">
           <h3 className="text-lg font-semibold mb-4 text-gray-800">
-            {editId ? 'Editar Imóvel' : 'Novo Imóvel'}
+            {editUuid ? 'Editar Imóvel' : 'Novo Imóvel'}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -226,38 +188,27 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {tipo === 'casa' ? 'Endereço da Casa' : tipo === 'fazenda' ? 'Endereço da Fazenda' : 'Residencial Incorporada'}
+                  {tipo === 'casa' ? 'Endereço da Casa' : tipo === 'fazenda' ? 'Endereço da Fazenda' : 'Endereço da Suíte'}
                 </label>
-                {tipo === 'suite' ? (
+                <input
+                  type="text"
+                  value={endereco}
+                  onChange={e => setEndereco(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Endereço completo"
+                  required
+                />
+              </div>
+
+              {tipo === 'suite' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Residencial Incorporada</label>
                   <input
                     type="text"
                     value={residencial}
                     onChange={e => setResidencial(e.target.value)}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Nome do residencial"
-                    required
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value={endereco}
-                    onChange={e => setEndereco(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Endereço completo"
-                    required
-                  />
-                )}
-              </div>
-
-              {tipo === 'suite' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Endereço da Suíte</label>
-                  <input
-                    type="text"
-                    value={endereco}
-                    onChange={e => setEndereco(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Endereço completo"
                     required
                   />
                 </div>
@@ -319,14 +270,14 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Vincular ao Cliente</label>
                 <select
-                  value={clienteId}
-                  onChange={e => setClienteId(e.target.value)}
+                  value={clienteUuid}
+                  onChange={e => setClienteUuid(e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
                   <option value="">Selecione um cliente</option>
                   {clientes.map(c => (
-                    <option key={c.id} value={c.id}>{c.nome} - {c.cpf}</option>
+                    <option key={c.uuid} value={c.uuid}>{c.nome} - {c.cpf}</option>
                   ))}
                 </select>
               </div>
@@ -337,7 +288,7 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
                 type="submit"
                 className="px-5 py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
               >
-                {editId ? 'Atualizar' : 'Cadastrar'}
+                {editUuid ? 'Atualizar' : 'Cadastrar'}
               </button>
               <button
                 type="button"
@@ -382,11 +333,11 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
           {imoveisFiltrados.map(imovel => {
             const mesesRestantes = getMesesRestantes(imovel);
             const ativo = isContratoAtivo(imovel);
-            const pago = isPagoMes(imovel);
+            const pago = isPago(imovel.uuid, new Date().getMonth() + 1, new Date().getFullYear());
             const progresso = ((imovel.contratoMeses - mesesRestantes) / imovel.contratoMeses) * 100;
 
             return (
-              <div key={imovel.id} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+              <div key={imovel.uuid} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
                 <div className="p-5">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center gap-2">
@@ -415,7 +366,7 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
                         </svg>
                       </button>
                       <button
-                        onClick={() => handleDelete(imovel.id)}
+                        onClick={() => handleDelete(imovel.uuid)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Excluir"
                       >
@@ -431,7 +382,7 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
                     <p className="text-sm text-gray-500 mb-1">Residencial: {imovel.residencial}</p>
                   )}
                   <p className="text-sm text-gray-600 mb-1">
-                    <span className="font-medium">Inquilino:</span> {getClienteNome(imovel.clienteId)}
+                    <span className="font-medium">Inquilino:</span> {getClienteNome(imovel.clienteUuid)}
                   </p>
                   {imovel.periodoArrendado && (
                     <p className="text-sm text-gray-600 mb-1">
@@ -472,7 +423,7 @@ export default function Imoveis({ imoveis, setImoveis, clientes }: ImoveisProps)
                   {/* Botão PAGO */}
                   {ativo && (
                     <button
-                      onClick={() => togglePagamento(imovel.id)}
+                      onClick={() => handleTogglePagamento(imovel.uuid)}
                       className={`w-full py-2.5 rounded-lg font-semibold transition-all ${
                         pago
                           ? 'bg-green-500 text-white hover:bg-green-600 shadow-md'

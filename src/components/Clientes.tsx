@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import { Cliente } from '../types';
+import { DBCliente } from '../database/db';
 
 interface ClientesProps {
-  clientes: Cliente[];
-  setClientes: (clientes: Cliente[]) => void;
+  clientes: DBCliente[];
+  onAdd: (dados: Omit<DBCliente, 'id' | 'uuid' | 'dataCadastro' | 'ativo'>) => Promise<void>;
+  onUpdate: (uuid: string, dados: Partial<DBCliente>) => Promise<void>;
+  onRemove: (uuid: string) => Promise<void>;
 }
 
-export default function Clientes({ clientes, setClientes }: ClientesProps) {
+export default function Clientes({ clientes, onAdd, onUpdate, onRemove }: ClientesProps) {
   const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [editUuid, setEditUuid] = useState<string | null>(null);
   const [nome, setNome] = useState('');
   const [cpf, setCpf] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [email, setEmail] = useState('');
   const [busca, setBusca] = useState('');
 
   const formatCPF = (value: string) => {
@@ -27,22 +30,14 @@ export default function Clientes({ clientes, setClientes }: ClientesProps) {
     return nums.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome || !cpf || !telefone) return;
 
-    if (editId) {
-      setClientes(clientes.map(c => 
-        c.id === editId ? { ...c, nome, cpf, telefone } : c
-      ));
+    if (editUuid) {
+      await onUpdate(editUuid, { nome, cpf, telefone, email: email || undefined });
     } else {
-      const novo: Cliente = {
-        id: Date.now().toString(),
-        nome,
-        cpf,
-        telefone,
-      };
-      setClientes([...clientes, novo]);
+      await onAdd({ nome, cpf, telefone, email: email || undefined });
     }
 
     resetForm();
@@ -52,21 +47,23 @@ export default function Clientes({ clientes, setClientes }: ClientesProps) {
     setNome('');
     setCpf('');
     setTelefone('');
+    setEmail('');
     setShowForm(false);
-    setEditId(null);
+    setEditUuid(null);
   };
 
-  const handleEdit = (cliente: Cliente) => {
+  const handleEdit = (cliente: DBCliente) => {
     setNome(cliente.nome);
     setCpf(cliente.cpf);
     setTelefone(cliente.telefone);
-    setEditId(cliente.id);
+    setEmail(cliente.email || '');
+    setEditUuid(cliente.uuid);
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (uuid: string) => {
     if (confirm('Tem certeza que deseja excluir este cliente?')) {
-      setClientes(clientes.filter(c => c.id !== id));
+      await onRemove(uuid);
     }
   };
 
@@ -93,10 +90,10 @@ export default function Clientes({ clientes, setClientes }: ClientesProps) {
       {showForm && (
         <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100">
           <h3 className="text-lg font-semibold mb-4 text-gray-800">
-            {editId ? 'Editar Cliente' : 'Novo Cliente'}
+            {editUuid ? 'Editar Cliente' : 'Novo Cliente'}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Inquilino</label>
                 <input
@@ -130,13 +127,23 @@ export default function Clientes({ clientes, setClientes }: ClientesProps) {
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email (opcional)</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="email@exemplo.com"
+                />
+              </div>
             </div>
             <div className="flex gap-3">
               <button
                 type="submit"
                 className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
               >
-                {editId ? 'Atualizar' : 'Cadastrar'}
+                {editUuid ? 'Atualizar' : 'Cadastrar'}
               </button>
               <button
                 type="button"
@@ -173,15 +180,17 @@ export default function Clientes({ clientes, setClientes }: ClientesProps) {
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Nome</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">CPF</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Telefone</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Email</th>
                   <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {clientesFiltrados.map(cliente => (
-                  <tr key={cliente.id} className="hover:bg-gray-50">
+                  <tr key={cliente.uuid} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-800 font-medium">{cliente.nome}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{cliente.cpf}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{cliente.telefone}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{cliente.email || '-'}</td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => handleEdit(cliente)}
@@ -190,7 +199,7 @@ export default function Clientes({ clientes, setClientes }: ClientesProps) {
                         Editar
                       </button>
                       <button
-                        onClick={() => handleDelete(cliente.id)}
+                        onClick={() => handleDelete(cliente.uuid)}
                         className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
                       >
                         Excluir

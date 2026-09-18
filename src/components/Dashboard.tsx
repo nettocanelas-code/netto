@@ -1,8 +1,8 @@
-import { Cliente, Imovel } from '../types';
+import { DBCliente, DBImovel } from '../database/db';
 
 interface DashboardProps {
-  clientes: Cliente[];
-  imoveis: Imovel[];
+  clientes: DBCliente[];
+  imoveis: DBImovel[];
   onNavigate: (tab: string) => void;
 }
 
@@ -24,21 +24,12 @@ export default function Dashboard({ clientes, imoveis, onNavigate }: DashboardPr
     return now < fim;
   });
 
-  const pagosMes = pagamentosMes.filter(im => {
-    return im.pagamentos.some(p => 
-      p.mes === now.getMonth() + 1 && 
-      p.ano === now.getFullYear() && 
-      p.pago
-    );
-  }).length;
-
-  const pendentesMes = pagamentosMes.length - pagosMes;
-
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-lg">
         <h2 className="text-2xl font-bold mb-2">Bem-vindo ao Gestão de Imóveis</h2>
         <p className="text-blue-100">Gerencie seus imóveis, clientes e contratos em um só lugar.</p>
+        <p className="text-blue-200 text-sm mt-2">💾 Dados armazenados no IndexedDB local</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -99,31 +90,39 @@ export default function Dashboard({ clientes, imoveis, onNavigate }: DashboardPr
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl p-5 shadow-md border border-gray-100">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <span className="text-lg">🏠</span>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Pagos este mês</p>
-              <p className="text-xl font-bold text-green-600">{pagosMes}</p>
+              <p className="text-sm text-gray-500">Casas</p>
+              <p className="text-xl font-bold text-blue-600">{imoveis.filter(i => i.tipo === 'casa').length}</p>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-xl p-5 shadow-md border border-gray-100">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <span className="text-lg">🌾</span>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Pendentes este mês</p>
-              <p className="text-xl font-bold text-red-600">{pendentesMes}</p>
+              <p className="text-sm text-gray-500">Fazendas</p>
+              <p className="text-xl font-bold text-green-600">{imoveis.filter(i => i.tipo === 'fazenda').length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 shadow-md border border-gray-100">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+              <span className="text-lg">🏨</span>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Suítes</p>
+              <p className="text-xl font-bold text-purple-600">{imoveis.filter(i => i.tipo === 'suite').length}</p>
             </div>
           </div>
         </div>
@@ -147,6 +146,12 @@ export default function Dashboard({ clientes, imoveis, onNavigate }: DashboardPr
           className="px-6 py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition-colors shadow-md"
         >
           📊 Ver Relatórios
+        </button>
+        <button
+          onClick={() => onNavigate('admin')}
+          className="px-6 py-3 bg-gray-600 text-white rounded-xl font-medium hover:bg-gray-700 transition-colors shadow-md"
+        >
+          💾 Banco de Dados
         </button>
       </div>
     </div>

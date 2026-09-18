@@ -1,36 +1,44 @@
-import { useState, useEffect } from 'react';
-import { Cliente, Imovel, TabType } from './types';
+import { useState } from 'react';
+import { TabType } from './types';
 import Dashboard from './components/Dashboard';
 import Clientes from './components/Clientes';
 import Imoveis from './components/Imoveis';
 import Relatorios from './components/Relatorios';
+import AdminDB from './components/AdminDB';
+import { useClientes } from './hooks/useDatabase';
+import { useImoveis } from './hooks/useDatabase';
+import { usePagamentos } from './hooks/useDatabase';
+import { useDatabase } from './hooks/useDatabase';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
-  const [clientes, setClientes] = useState<Cliente[]>(() => {
-    const saved = localStorage.getItem('gestao-clientes');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [imoveis, setImoveis] = useState<Imovel[]>(() => {
-    const saved = localStorage.getItem('gestao-imoveis');
-    return saved ? JSON.parse(saved) : [];
-  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem('gestao-clientes', JSON.stringify(clientes));
-  }, [clientes]);
+  const { clientes, loading: loadingClientes, adicionar: addCliente, atualizar: updateCliente, remover: removeCliente } = useClientes();
+  const { imoveis, loading: loadingImoveis, adicionar: addImovel, atualizar: updateImovel, remover: removeImovel } = useImoveis();
+  const { toggle: togglePagamento, isPago, recarregar: recarregarPagamentos } = usePagamentos();
+  const { stats } = useDatabase();
 
-  useEffect(() => {
-    localStorage.setItem('gestao-imoveis', JSON.stringify(imoveis));
-  }, [imoveis]);
+  const loading = loadingClientes || loadingImoveis;
 
   const tabs: { id: TabType; label: string; icon: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
     { id: 'clientes', label: 'Clientes', icon: '👥' },
     { id: 'imoveis', label: 'Imóveis', icon: '🏗️' },
     { id: 'relatorios', label: 'Relatórios', icon: '📊' },
+    { id: 'admin', label: 'Banco de Dados', icon: '💾' },
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Carregando banco de dados...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -62,8 +70,9 @@ function App() {
         <div className="p-4 border-t border-gray-100">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4">
             <p className="text-xs text-gray-600 font-medium">Total de Imóveis</p>
-            <p className="text-2xl font-bold text-blue-700">{imoveis.length}</p>
-            <p className="text-xs text-gray-500 mt-1">{clientes.length} clientes cadastrados</p>
+            <p className="text-2xl font-bold text-blue-700">{stats?.totalImoveis ?? imoveis.length}</p>
+            <p className="text-xs text-gray-500 mt-1">{stats?.totalClientes ?? clientes.length} clientes cadastrados</p>
+            <p className="text-xs text-gray-400 mt-1">💾 IndexedDB</p>
           </div>
         </div>
       </aside>
@@ -125,7 +134,7 @@ function App() {
         {/* Mobile bottom nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
           <div className="flex justify-around">
-            {tabs.map(tab => (
+            {tabs.slice(0, 4).map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -152,21 +161,32 @@ function App() {
           {activeTab === 'clientes' && (
             <Clientes
               clientes={clientes}
-              setClientes={setClientes}
+              onAdd={addCliente}
+              onUpdate={updateCliente}
+              onRemove={removeCliente}
             />
           )}
           {activeTab === 'imoveis' && (
             <Imoveis
               imoveis={imoveis}
-              setImoveis={setImoveis}
               clientes={clientes}
+              onAdd={addImovel}
+              onUpdate={updateImovel}
+              onRemove={removeImovel}
+              onTogglePagamento={togglePagamento}
+              isPago={isPago}
+              onRecarregarPagamentos={recarregarPagamentos}
             />
           )}
           {activeTab === 'relatorios' && (
             <Relatorios
               imoveis={imoveis}
               clientes={clientes}
+              isPago={isPago}
             />
+          )}
+          {activeTab === 'admin' && (
+            <AdminDB />
           )}
         </div>
       </main>

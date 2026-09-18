@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Cliente, Imovel } from '../types';
+import { DBCliente, DBImovel } from '../database/db';
 
 interface RelatoriosProps {
-  imoveis: Imovel[];
-  clientes: Cliente[];
+  imoveis: DBImovel[];
+  clientes: DBCliente[];
+  isPago: (imovelUuid: string, mes: number, ano: number) => boolean;
 }
 
-export default function Relatorios({ imoveis, clientes }: RelatoriosProps) {
+export default function Relatorios({ imoveis, clientes, isPago }: RelatoriosProps) {
   const [tipoRelatorio, setTipoRelatorio] = useState<'mensal' | 'anual'>('mensal');
   const [mesSelecionado, setMesSelecionado] = useState(new Date().getMonth() + 1);
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
@@ -16,8 +17,8 @@ export default function Relatorios({ imoveis, clientes }: RelatoriosProps) {
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
 
-  const getClienteNome = (clienteId: string) => {
-    const cliente = clientes.find(c => c.id === clienteId);
+  const getClienteNome = (clienteUuid: string) => {
+    const cliente = clientes.find(c => c.uuid === clienteUuid);
     return cliente ? cliente.nome : 'N/A';
   };
 
@@ -30,7 +31,7 @@ export default function Relatorios({ imoveis, clientes }: RelatoriosProps) {
     }
   };
 
-  const isContratoAtivoNoPeriodo = (imovel: Imovel, mes: number, ano: number) => {
+  const isContratoAtivoNoPeriodo = (imovel: DBImovel, mes: number, ano: number) => {
     const inicio = new Date(imovel.dataInicio);
     const fim = new Date(inicio);
     fim.setMonth(fim.getMonth() + imovel.contratoMeses);
@@ -46,11 +47,11 @@ export default function Relatorios({ imoveis, clientes }: RelatoriosProps) {
   );
 
   const imoveisPagos = imoveisAtivosMes.filter(im =>
-    im.pagamentos.some(p => p.mes === mesSelecionado && p.ano === anoSelecionado && p.pago)
+    isPago(im.uuid, mesSelecionado, anoSelecionado)
   );
 
   const imoveisPendentes = imoveisAtivosMes.filter(im =>
-    !im.pagamentos.some(p => p.mes === mesSelecionado && p.ano === anoSelecionado && p.pago)
+    !isPago(im.uuid, mesSelecionado, anoSelecionado)
   );
 
   const totalReceitaMes = imoveisAtivosMes.reduce((acc, im) => acc + im.valorAluguel, 0);
@@ -61,9 +62,7 @@ export default function Relatorios({ imoveis, clientes }: RelatoriosProps) {
   const dadosAnuais = meses.map((_, index) => {
     const mes = index + 1;
     const ativos = imoveis.filter(im => isContratoAtivoNoPeriodo(im, mes, anoSelecionado));
-    const pagos = ativos.filter(im =>
-      im.pagamentos.some(p => p.mes === mes && p.ano === anoSelecionado && p.pago)
-    );
+    const pagos = ativos.filter(im => isPago(im.uuid, mes, anoSelecionado));
     return {
       mes,
       nome: meses[index],
@@ -192,14 +191,12 @@ export default function Relatorios({ imoveis, clientes }: RelatoriosProps) {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {imoveisAtivosMes.map(imovel => {
-                      const pago = imovel.pagamentos.some(p =>
-                        p.mes === mesSelecionado && p.ano === anoSelecionado && p.pago
-                      );
+                      const pago = isPago(imovel.uuid, mesSelecionado, anoSelecionado);
                       return (
-                        <tr key={imovel.id} className="hover:bg-gray-50">
+                        <tr key={imovel.uuid} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm">{getTipoLabel(imovel.tipo)}</td>
                           <td className="px-4 py-3 text-sm text-gray-800">{imovel.endereco}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{getClienteNome(imovel.clienteId)}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{getClienteNome(imovel.clienteUuid)}</td>
                           <td className="px-4 py-3 text-sm text-right font-medium">
                             R$ {imovel.valorAluguel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </td>
